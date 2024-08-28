@@ -1,0 +1,17 @@
+streamlit
+numpy
+pandas
+boto3
+requests
+openai
+python-dotenv
+pyaudio
+sounddevice
+setuptools 
+wheel
+wavio
+# portAudio
+audiorecorder
+transformers
+fastapi
+uvicorn

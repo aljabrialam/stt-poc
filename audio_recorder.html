@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        #recordButton, #stopButton {
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <button id="recordButton">Start Recording</button>
+        <button id="stopButton" disabled>Stop Recording</button>
+        <p><audio id="audioPlayback" controls></audio></p>
+        <p id="transcript"></p>
+    </div>
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        document.getElementById('recordButton').addEventListener('click', () => {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    audioChunks = [];
+
+                    mediaRecorder.addEventListener('dataavailable', event => {
+                        audioChunks.push(event.data);
+                    });
+
+                    mediaRecorder.addEventListener('stop', () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        document.getElementById('audioPlayback').src = audioUrl;
+
+                        const reader = new FileReader();
+                        reader.readAsDataURL(audioBlob);
+                        reader.onloadend = function() {
+                            const base64data = reader.result.split(',')[1];
+                            fetch('https://stt-poc.streamlit.app/transcribe', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ audio: base64data })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                const transcriptElement = document.getElementById('transcript');
+                                transcriptElement.innerHTML = "<h3>Transcript:</h3><p>" + data.transcript + "</p>";
+
+                                if (data.transcript) {
+                                    const summaryElement = document.createElement('div');
+                                    summaryElement.innerHTML = "<h3>Summary:</h3><p>" + data.summary + "</p>";
+                                    document.body.appendChild(summaryElement);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                const transcriptElement = document.getElementById('transcript');
+                                transcriptElement.innerHTML = "Error sending audio.";
+                            });
+                        };
+                    });
+
+                    document.getElementById('stopButton').disabled = false;
+                    document.getElementById('recordButton').disabled = true;
+                })
+                .catch(error => {
+                    console.error('Error accessing media devices:', error);
+                    const transcriptElement = document.getElementById('transcript');
+                    transcriptElement.innerHTML = "Error accessing media devices.";
+                });
+        });
+
+        document.getElementById('stopButton').addEventListener('click', () => {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+                document.getElementById('stopButton').disabled = true;
+                document.getElementById('recordButton').disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
